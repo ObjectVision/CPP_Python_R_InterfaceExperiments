@@ -1,0 +1,10 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/Bindings/obj/x64/Debug
+/Bindings/Data/x64/Debug/Data.tlog
+/Bindings/Data/x64/Debug
+/Bindings/RLang/x64/Debug
+/Bindings/bin/x64/Debug
+/Bindings/.vs/Bindings
