@@ -21,12 +21,7 @@ public:
         init_based_on_value(init_value);
     }
 
-    ~Matrix()
-    {
-		delete[] m_data;
-	}
-
-    int32_t* data() { return m_data; }
+    int32_t* data() { return m_data.data(); }
     size_t rows() const { return m_rows; }
     size_t cols() const { return m_cols; }
     size_t size() const { return m_rows * m_cols; }
@@ -49,18 +44,18 @@ private:
     {
         m_rows = rows;
         m_cols = cols;
-        m_data = new int32_t[rows * cols];
+        m_data.resize(rows * cols);// = new int32_t[rows * cols];
     }
 
     void init_based_on_value(int32_t init_value)
     {
         for (int i = 0; i < this->size(); i++) {
-			m_data[i] = init_value;
+			m_data.at(i) = init_value;
 		}
 	}
 
     size_t m_rows = 0, m_cols = 0;
-    int32_t* m_data;
+    std::vector<int32_t> m_data;
 };
 
 class Engine {
