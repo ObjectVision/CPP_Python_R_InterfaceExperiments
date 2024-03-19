@@ -7,9 +7,12 @@
 // Flow of test application:
 //     Python:
 //     -    constructs engine object
-//     -    calls engine to perform primitive (reference counted) operation which returns matrix data: 1x1(scalar), 1xN(vector), MxN(matrix)
-//     -        engine keeps reference to matrix data
-//     -        engine returns view to matrix data
+//     -    calls engine to perform primitive (reference counted) operation which returns data: 1x1(scalar), 1xN(vector), MxN(matrix)
+//     -        engine is owner of data
+//     -        engine returns views to data
+
+using data_type = uint8_t;
+
 class Matrix {
 public:
     Matrix(size_t rows, size_t cols) {
@@ -21,20 +24,20 @@ public:
         init_based_on_value(init_value);
     }
 
-    int32_t* data() { return m_data.data(); }
+    data_type* data() { return m_data.data(); }
     size_t rows() const { return m_rows; }
     size_t cols() const { return m_cols; }
     size_t size() const { return m_rows * m_cols; }
 
-    std::shared_ptr<Matrix> Add(std::shared_ptr<Matrix> other)
+    Matrix Add(const Matrix& other)
     {
         assert(this->rows() == other->rows());
         assert(this->cols() == other->cols());
 
-        std::shared_ptr<Matrix> result = std::make_shared<Matrix>(this->rows(), this->cols());
+        Matrix result = Matrix(this->rows(), this->cols());
         for (int i=0; i<this->size(); i++)
         {
-            result->data()[i] = this->m_data[i] + other->m_data[i];
+            result.data()[i] = this->m_data[i] + other.m_data[i];
         }
     	return result;
     }
@@ -55,7 +58,7 @@ private:
 	}
 
     size_t m_rows = 0, m_cols = 0;
-    std::vector<int32_t> m_data;
+    std::vector<data_type> m_data;
 };
 
 class Engine {
@@ -66,36 +69,50 @@ public:
         calc_results.clear();
     }
 
-    std::shared_ptr<Matrix> Calculate() {
+    auto Calculate() -> const Matrix& {
         size_t test_size = 50000;
-		std::shared_ptr<Matrix> A = std::make_shared<Matrix>(test_size, test_size, 3);
-        std::shared_ptr<Matrix> B = std::make_shared<Matrix>(test_size, test_size, 7);
-		calc_results.push_back(A->Add(B));
+		Matrix A = Matrix(test_size, test_size, 3);
+        Matrix B = Matrix(test_size, test_size, 7);
+		calc_results.push_back(A.Add(B));
 
         return calc_results.back();
 	}
+
+    auto CalculateView() -> pybind11::memoryview {
+        if (calc_results.empty()) 
+            Calculate();
+
+        auto& matrix = calc_results.back();
+
+        return pybind11::memoryview::from_buffer(
+            matrix.data(),                                             // buffer pointer
+            { matrix.rows(), matrix.cols()},                           // shape (rows, cols)
+            { sizeof(data_type) * matrix.cols(), sizeof(data_type) }   // strides in bytes
+        );
+    }
         
 private:
-    std::vector<std::shared_ptr<Matrix>> calc_results;
+    std::vector<Matrix> calc_results;
 };
 
 PYBIND11_MODULE(PythonBindings, m)
 {
     pybind11::class_<Engine>(m, "Engine")
         .def(pybind11::init<>())
-        .def("Calculate", &Engine::Calculate);
+        .def("Calculate", &Engine::Calculate, pybind11::return_value_policy::reference) // return policy states that Engine instance remains owner of data
+        .def("CalculateView", &Engine::CalculateView);
 
-
-    pybind11::class_<Matrix>(m, "Matrix", pybind11::buffer_protocol()). //pybind11::array()). //  to restrict to numpy only ekse 
+    pybind11::class_<Matrix>(m, "Matrix", pybind11::buffer_protocol()). // std::unique_ptr<Matrix>, pybind11::nodelete
         def_buffer([](Matrix& m) -> pybind11::buffer_info {
             return pybind11::buffer_info(
-                m.data(),                               /* Pointer to buffer */
-                sizeof(int32_t),                          /* Size of one scalar */
-                pybind11::format_descriptor<int32_t>::format(), /* Python struct-style format descriptor */
-                2,                                      /* Number of dimensions */
-                { m.rows(), m.cols() },                 /* Buffer dimensions */
-                { sizeof(int32_t) * m.cols(),             /* Strides (in bytes) for each index */
-                    sizeof(int32_t) }
+                m.data(),                                       // Pointer to buffer
+                sizeof(data_type),                                // Size of one scalar
+                pybind11::format_descriptor<data_type>::format(), // Python struct-style format descriptor
+                2,                                              // Number of dimensions
+                { m.rows(), m.cols() },                         // Buffer dimensions
+                { sizeof(data_type) * m.cols(),                   // Strides (in bytes) for each index
+                    sizeof(data_type) }
             );
         });
+        
 }
