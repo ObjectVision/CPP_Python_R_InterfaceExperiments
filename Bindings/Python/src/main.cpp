@@ -4,14 +4,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
-// Flow of test application:
-//     Python:
-//     -    constructs engine object
-//     -    calls engine to perform primitive (reference counted) operation which returns data: 1x1(scalar), 1xN(vector), MxN(matrix)
-//     -        engine is owner of data
-//     -        engine returns views to data
-
-using data_type = uint8_t;
+using data_type = uint32_t; //uint8_t;
 
 class Matrix {
 public:
